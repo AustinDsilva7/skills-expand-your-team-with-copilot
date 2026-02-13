@@ -537,7 +537,10 @@ document.addEventListener("DOMContentLoaded", () => {
       case 'email':
         const subject = encodeURIComponent(`Check out ${name} at Mergington High School`);
         const body = encodeURIComponent(`${shareText}\n\nLearn more: ${shareUrl}`);
-        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        // Use anchor element to avoid navigating away from the page
+        const emailLink = document.createElement('a');
+        emailLink.href = `mailto:?subject=${subject}&body=${body}`;
+        emailLink.click();
         break;
       case 'copy':
         // Use modern clipboard API if available, with fallback
@@ -689,10 +692,10 @@ document.addEventListener("DOMContentLoaded", () => {
       button.addEventListener("click", (e) => {
         e.preventDefault();
         const platform = button.dataset.platform;
-        const activityName = button.dataset.activity;
         
         if (platform) {
-          handleShare(platform, activityName, details);
+          // Use the original name from closure instead of escaped data attribute
+          handleShare(platform, name, details);
         }
       });
     });
