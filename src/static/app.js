@@ -480,6 +480,43 @@ document.addEventListener("DOMContentLoaded", () => {
     return { shareUrl, shareText };
   }
 
+  // Fallback function for copying to clipboard (for older browsers)
+  function fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        showMessage('Link copied to clipboard!', 'success');
+      } else {
+        showMessage('Failed to copy link. Please copy manually.', 'error');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      showMessage('Failed to copy link. Please copy manually.', 'error');
+    }
+    
+    document.body.removeChild(textArea);
+  }
+
+  // Function to escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+  }
+
   // Function to handle social sharing
   function handleShare(platform, name, details) {
     const { shareUrl, shareText } = getShareData(name, details);
@@ -503,12 +540,19 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = `mailto:?subject=${subject}&body=${body}`;
         break;
       case 'copy':
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          showMessage('Link copied to clipboard!', 'success');
-        }).catch(err => {
-          console.error('Failed to copy:', err);
-          showMessage('Failed to copy link', 'error');
-        });
+        // Use modern clipboard API if available, with fallback
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            showMessage('Link copied to clipboard!', 'success');
+          }).catch(err => {
+            console.error('Failed to copy:', err);
+            // Fallback for clipboard permission denial
+            fallbackCopyToClipboard(shareUrl);
+          });
+        } else {
+          // Fallback for browsers without clipboard API
+          fallbackCopyToClipboard(shareUrl);
+        }
         break;
     }
   }
@@ -561,19 +605,20 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     // Create social sharing buttons
+    const escapedName = escapeHtml(name);
     const shareButtonsHtml = `
       <div class="share-buttons">
         <span class="share-label">Share:</span>
-        <button class="share-btn share-twitter" data-activity="${name}" title="Share on Twitter">
+        <button class="share-btn" data-platform="twitter" data-activity="${escapedName}" title="Share on Twitter">
           <span class="share-icon">🐦</span>
         </button>
-        <button class="share-btn share-facebook" data-activity="${name}" title="Share on Facebook">
+        <button class="share-btn" data-platform="facebook" data-activity="${escapedName}" title="Share on Facebook">
           <span class="share-icon">👍</span>
         </button>
-        <button class="share-btn share-email" data-activity="${name}" title="Share via Email">
+        <button class="share-btn" data-platform="email" data-activity="${escapedName}" title="Share via Email">
           <span class="share-icon">✉️</span>
         </button>
-        <button class="share-btn share-copy" data-activity="${name}" title="Copy Link">
+        <button class="share-btn" data-platform="copy" data-activity="${escapedName}" title="Copy Link">
           <span class="share-icon">🔗</span>
         </button>
       </div>
@@ -643,16 +688,11 @@ document.addEventListener("DOMContentLoaded", () => {
     shareButtons.forEach((button) => {
       button.addEventListener("click", (e) => {
         e.preventDefault();
+        const platform = button.dataset.platform;
         const activityName = button.dataset.activity;
         
-        if (button.classList.contains('share-twitter')) {
-          handleShare('twitter', activityName, details);
-        } else if (button.classList.contains('share-facebook')) {
-          handleShare('facebook', activityName, details);
-        } else if (button.classList.contains('share-email')) {
-          handleShare('email', activityName, details);
-        } else if (button.classList.contains('share-copy')) {
-          handleShare('copy', activityName, details);
+        if (platform) {
+          handleShare(platform, activityName, details);
         }
       });
     });
