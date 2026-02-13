@@ -472,6 +472,94 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Function to create shareable URL and text for an activity
+  function getShareData(name, details) {
+    const formattedSchedule = formatSchedule(details);
+    const shareUrl = window.location.href;
+    const shareText = `Check out ${name} at Mergington High School! ${details.description} Schedule: ${formattedSchedule}`;
+    return { shareUrl, shareText };
+  }
+
+  // Fallback function for copying to clipboard (for older browsers)
+  function fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        showMessage('Link copied to clipboard!', 'success');
+      } else {
+        showMessage('Failed to copy link. Please copy manually.', 'error');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      showMessage('Failed to copy link. Please copy manually.', 'error');
+    }
+    
+    document.body.removeChild(textArea);
+  }
+
+  // Function to escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+  }
+
+  // Function to handle social sharing
+  function handleShare(platform, name, details) {
+    const { shareUrl, shareText } = getShareData(name, details);
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(shareText);
+
+    let shareLink = '';
+
+    switch(platform) {
+      case 'twitter':
+        shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+        window.open(shareLink, '_blank', 'width=550,height=420');
+        break;
+      case 'facebook':
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        window.open(shareLink, '_blank', 'width=550,height=420');
+        break;
+      case 'email':
+        const subject = encodeURIComponent(`Check out ${name} at Mergington High School`);
+        const body = encodeURIComponent(`${shareText}\n\nLearn more: ${shareUrl}`);
+        // Use anchor element to avoid navigating away from the page
+        const emailLink = document.createElement('a');
+        emailLink.href = `mailto:?subject=${subject}&body=${body}`;
+        emailLink.click();
+        break;
+      case 'copy':
+        // Use modern clipboard API if available, with fallback
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(shareUrl).then(() => {
+            showMessage('Link copied to clipboard!', 'success');
+          }).catch(err => {
+            console.error('Failed to copy:', err);
+            // Fallback for clipboard permission denial
+            fallbackCopyToClipboard(shareUrl);
+          });
+        } else {
+          // Fallback for browsers without clipboard API
+          fallbackCopyToClipboard(shareUrl);
+        }
+        break;
+    }
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -519,6 +607,26 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    // Create social sharing buttons
+    const escapedName = escapeHtml(name);
+    const shareButtonsHtml = `
+      <div class="share-buttons">
+        <span class="share-label">Share:</span>
+        <button class="share-btn" data-platform="twitter" data-activity="${escapedName}" title="Share on Twitter">
+          <span class="share-icon">🐦</span>
+        </button>
+        <button class="share-btn" data-platform="facebook" data-activity="${escapedName}" title="Share on Facebook">
+          <span class="share-icon">👍</span>
+        </button>
+        <button class="share-btn" data-platform="email" data-activity="${escapedName}" title="Share via Email">
+          <span class="share-icon">✉️</span>
+        </button>
+        <button class="share-btn" data-platform="copy" data-activity="${escapedName}" title="Copy Link">
+          <span class="share-icon">🔗</span>
+        </button>
+      </div>
+    `;
+
     activityCard.innerHTML = `
       ${tagHtml}
       <h4>${name}</h4>
@@ -528,6 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="tooltip-text">Regular meetings at this time throughout the semester</span>
       </p>
       ${capacityIndicator}
+      ${shareButtonsHtml}
       <div class="participants-list">
         <h5>Current Participants:</h5>
         <ul>
@@ -575,6 +684,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteButtons = activityCard.querySelectorAll(".delete-participant");
     deleteButtons.forEach((button) => {
       button.addEventListener("click", handleUnregister);
+    });
+
+    // Add click handlers for share buttons
+    const shareButtons = activityCard.querySelectorAll(".share-btn");
+    shareButtons.forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        const platform = button.dataset.platform;
+        
+        if (platform) {
+          // Use the original name from closure instead of escaped data attribute
+          handleShare(platform, name, details);
+        }
+      });
     });
 
     // Add click handler for register button (only when authenticated)
