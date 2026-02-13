@@ -472,6 +472,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Function to create shareable URL and text for an activity
+  function getShareData(name, details) {
+    const formattedSchedule = formatSchedule(details);
+    const shareUrl = window.location.href;
+    const shareText = `Check out ${name} at Mergington High School! ${details.description} Schedule: ${formattedSchedule}`;
+    return { shareUrl, shareText };
+  }
+
+  // Function to handle social sharing
+  function handleShare(platform, name, details) {
+    const { shareUrl, shareText } = getShareData(name, details);
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(shareText);
+
+    let shareLink = '';
+
+    switch(platform) {
+      case 'twitter':
+        shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+        window.open(shareLink, '_blank', 'width=550,height=420');
+        break;
+      case 'facebook':
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        window.open(shareLink, '_blank', 'width=550,height=420');
+        break;
+      case 'email':
+        const subject = encodeURIComponent(`Check out ${name} at Mergington High School`);
+        const body = encodeURIComponent(`${shareText}\n\nLearn more: ${shareUrl}`);
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          showMessage('Link copied to clipboard!', 'success');
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+          showMessage('Failed to copy link', 'error');
+        });
+        break;
+    }
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -519,6 +560,25 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    // Create social sharing buttons
+    const shareButtonsHtml = `
+      <div class="share-buttons">
+        <span class="share-label">Share:</span>
+        <button class="share-btn share-twitter" data-activity="${name}" title="Share on Twitter">
+          <span class="share-icon">🐦</span>
+        </button>
+        <button class="share-btn share-facebook" data-activity="${name}" title="Share on Facebook">
+          <span class="share-icon">👍</span>
+        </button>
+        <button class="share-btn share-email" data-activity="${name}" title="Share via Email">
+          <span class="share-icon">✉️</span>
+        </button>
+        <button class="share-btn share-copy" data-activity="${name}" title="Copy Link">
+          <span class="share-icon">🔗</span>
+        </button>
+      </div>
+    `;
+
     activityCard.innerHTML = `
       ${tagHtml}
       <h4>${name}</h4>
@@ -528,6 +588,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <span class="tooltip-text">Regular meetings at this time throughout the semester</span>
       </p>
       ${capacityIndicator}
+      ${shareButtonsHtml}
       <div class="participants-list">
         <h5>Current Participants:</h5>
         <ul>
@@ -575,6 +636,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteButtons = activityCard.querySelectorAll(".delete-participant");
     deleteButtons.forEach((button) => {
       button.addEventListener("click", handleUnregister);
+    });
+
+    // Add click handlers for share buttons
+    const shareButtons = activityCard.querySelectorAll(".share-btn");
+    shareButtons.forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        const activityName = button.dataset.activity;
+        
+        if (button.classList.contains('share-twitter')) {
+          handleShare('twitter', activityName, details);
+        } else if (button.classList.contains('share-facebook')) {
+          handleShare('facebook', activityName, details);
+        } else if (button.classList.contains('share-email')) {
+          handleShare('email', activityName, details);
+        } else if (button.classList.contains('share-copy')) {
+          handleShare('copy', activityName, details);
+        }
+      });
     });
 
     // Add click handler for register button (only when authenticated)
